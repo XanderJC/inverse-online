@@ -11,11 +11,7 @@ src
 │
 ├── data_loading   <- Scripts to download or generate data
 |
-├── preprocessing  <- Scripts to turn raw data into clean data and features for modeling
-│
 ├── models         <- Scripts to train models and then use trained models to make
 │                     predictions
 └── tests          <- Scripts for unit tests of your functions
 ```
-
-This generic folder structure is useful for most project, but feel free to adapt it to your needs.

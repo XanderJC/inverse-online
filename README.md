@@ -1,4 +1,4 @@
-# treatment-beliefs
+# Treatment Effect Beliefs 
 
  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
  <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
@@ -18,7 +18,7 @@
 │   ├── exploratory    <- Notebooks for initial exploration.
 │   └── reports        <- Polished notebooks for presentations or intermediate results.
 │
-├── requirements       <- Directory containing the requirement files.
+├── requirements.txt   <- Requirement file.
 │
 ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
 ├── src                <- Source code for use in this project.
@@ -26,8 +26,6 @@
 │   │
 │   ├── data_loading   <- Scripts to download or generate data
 │   │
-│   ├── preprocessing  <- Scripts to turn raw data into clean data and features for modeling
-|   |
 │   ├── models         <- Scripts to train models and then use trained models to make
 │   │                     predictions
 │   │
@@ -35,8 +33,3 @@
 │
 └── setup.cfg          <- setup configuration file for linting rules
 ```
-
-## Code formatting
-To automatically format your code, make sure you have `black` installed (`pip install black`) and call
-```black . ``` 
-from within the project directory.
