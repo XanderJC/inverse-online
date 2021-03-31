@@ -15,3 +15,6 @@ training_processed = get_processed_data(training_data, scaling_data)
 
 print(training_processed["current_covariates"])
 print(training_processed["current_covariates"].shape)
+
+print(training_processed["current_treatments"].shape)
+print(training_processed["outputs"].shape)

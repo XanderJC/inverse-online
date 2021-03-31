@@ -1,3 +1,8 @@
+"""
+CODE FROM: https://github.com/ioanabica/Counterfactual-Recurrent-Network
+# Copyright (c) 2020, Ioana Bica
+"""
+
 import numpy as np
 
 
