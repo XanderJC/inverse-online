@@ -11,3 +11,7 @@ Constants for the cancer simulation code
 """
 CHEMO_COEFF = 2
 RADIO_COEFF = 2
+
+C_COV_DIM = 2
+C_ACT_DIM = 4
+C_OUT_DIM = 1

@@ -3,6 +3,7 @@ import torch
 
 from src.constants import *
 from src.models import BaseModel
+import torch.nn.functional as F
 
 
 class BeliefModel(BaseModel):
@@ -10,7 +11,7 @@ class BeliefModel(BaseModel):
         self,
         covariate_size: int,
         action_size: int,
-        num_treatments: int,
+        outcome_size: int,
         lstm_hidden_size: int,
         lstm_layers: int,
         lstm_dropout: float,
@@ -22,7 +23,7 @@ class BeliefModel(BaseModel):
 
         self.covariate_size = covariate_size
         self.action_size = action_size
-        self.num_treatments = num_treatments
+        self.outcome_size = outcome_size
         self.summary_size = summary_size
 
         self.lstm_hidden_size = lstm_hidden_size
@@ -33,32 +34,33 @@ class BeliefModel(BaseModel):
         self.pred_layers = pred_layers
 
         self.summary_network = SummaryNetwork(
-            input_size = self.covariate_size+self.action_size+self.num_treatments,
-            output_size = self.summary_size,
-            hidden_size = self.lstm_hidden_size,
-            num_layers = self.lstm_layers,
-            dropout = self.lstm_dropout
+            input_size=self.covariate_size + self.action_size + self.outcome_size,
+            output_size=self.summary_size,
+            hidden_size=self.lstm_hidden_size,
+            num_layers=self.lstm_layers,
+            dropout=self.lstm_dropout,
         )
 
         self.treatment_network = TreatNetwork(
-            covariate_size: self.covariate_size,
-            summary_size: self.summary_size,
-            hidden_size: self.pred_hidden_size,
-            num_layers: self.pred_layers,
-            num_treatments: self.num_treatments,
+            covariate_size=self.covariate_size,
+            action_size=self.action_size,
+            summary_size=self.summary_size,
+            hidden_size=self.pred_hidden_size,
+            num_layers=self.pred_layers,
         )
 
     def forward(self, covariates, actions, outcomes):
 
         # Get summary - check axis
-        concat_summary_in = torch.concat([covariates, actions, outcomes], axis=1)
-        print(concat_summary_in.size)
+        concat_summary_in = torch.cat([covariates, actions, outcomes], axis=2)
 
         summary = self.summary_network(concat_summary_in)
         # out: tensor of shape (batch_size, seq_length + 1, output_size)
 
-        # Now concatenate with covariates and predict belief over treatment effects
-        concat_pred_in = torch.concat([covariates, summary], axis=1)
+        summary = summary[:, :-1, :]
+
+        # Concatenate with covariates summary
+        concat_pred_in = torch.cat((covariates, summary), axis=2)
 
         treatment_beliefs = self.treatment_network(concat_pred_in)
 
@@ -68,13 +70,14 @@ class BeliefModel(BaseModel):
         covariates, actions, outcomes, mask = batch
 
         pred = F.softmax(self.forward(covariates, actions, outcomes), 2)
-        dist = torch.distributions.categorical.Categorical(probs=pred)
-        ll = dist.log_prob(y_series)
+        dist = torch.distributions.Categorical(probs=pred)
 
-        return -ll.masked_select(mask.bool()).mean()
+        ll = dist.log_prob(actions.argmax(dim=2))
+
+        return -ll.masked_select(mask.squeeze().bool()).mean()
 
 
-class SummaryNetwork(torch.nn.module):
+class SummaryNetwork(torch.nn.Module):
     def __init__(
         self,
         input_size: int,
@@ -85,28 +88,30 @@ class SummaryNetwork(torch.nn.module):
     ):
         super(SummaryNetwork, self).__init__()
 
-        self.input_size
+        self.input_size = input_size
         self.hidden_size = hidden_size
-        self.layers = layers
+        self.num_layers = num_layers
         self.dropout = dropout
         self.output_size = output_size
 
         self.h0 = torch.nn.Parameter(
-            torch.zeros(self.lstm_layers, 1, self.lstm_hidden_size)
+            torch.zeros((self.num_layers, 1, self.hidden_size), dtype=torch.double)
         )
         self.c0 = torch.nn.Parameter(
-            torch.zeros(self.lstm_layers, 1, self.lstm_hidden_size)
+            torch.zeros((self.num_layers, 1, self.hidden_size), dtype=torch.double)
         )
 
         self.lstm = torch.nn.LSTM(
             self.input_size,
             self.hidden_size,
-            self.lstm_layers,
+            self.num_layers,
             batch_first=True,
-            dropout=self.lstm_dropout,
+            dropout=self.dropout,
         )
+        self.lstm.double()
 
         self.fc = torch.nn.Linear(self.hidden_size, self.output_size)
+        self.fc.double()
 
     def forward(self, x):
 
@@ -114,14 +119,13 @@ class SummaryNetwork(torch.nn.module):
         h0 = self.h0.expand(self.num_layers, x.size(0), self.hidden_size)
         c0 = self.c0.expand(self.num_layers, x.size(0), self.hidden_size)
 
-        out, _ = self.lstm(x, (h0, c0))
+        out, _ = self.lstm(x.double(), (h0, c0))
         # out: tensor of shape (batch_size, seq_length, hidden_size)
 
-        init_out = self.fc(h0[-1,0,:].expand(x.size(0),1,self.hidden_size))
-        out = torch.concat(init_out, out, axis=1)
-        print(out.shape)
-
         out = self.fc(out)
+        init_out = self.fc(h0[-1, 0, :].expand(x.size(0), 1, self.hidden_size))
+        out = torch.cat((init_out, out), axis=1)
+
         # out: tensor of shape (batch_size, seq_length+1, output_size)
 
         return out
@@ -131,36 +135,53 @@ class TreatNetwork(torch.nn.Module):
     def __init__(
         self,
         covariate_size: int,
+        action_size: int,
         summary_size: int,
         hidden_size: int,
         num_layers: int,
-        num_treatments: int,
     ):
         super(TreatNetwork, self).__init__()
 
         self.covariate_size = covariate_size
-
+        self.action_size = action_size
+        self.summary_size = summary_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
-        self.predictor = nn.ModuleList(
-            [nn.Linear(self.covariate_size + self.summary_size, self.hidden_size)]
+        """
+        self.predictor = torch.nn.ModuleList(
+            [torch.nn.Linear(self.covariate_size + self.summary_size, self.hidden_size)]
             + [
-                nn.Linear(self.hidden_size, self.hidden_size)
+                torch.nn.Linear(self.hidden_size, self.hidden_size)
                 for _ in range(self.num_layers)
             ]
-            + [nn.Linear(self.hidden_size, self.num_treatments)]
+            + [torch.nn.Linear(self.hidden_size, self.action_size)]
         )
+        """
+        self.in_layer = torch.nn.Linear(
+            self.covariate_size + self.summary_size, self.hidden_size
+        )
+        self.linears = torch.nn.ModuleList(
+            [
+                torch.nn.Linear(self.hidden_size, self.hidden_size)
+                for _ in range(self.num_layers)
+            ]
+        )
+        self.out_layer = torch.nn.Linear(self.hidden_size, self.action_size)
 
-    def forward(self, covariates, summary):
+        self.in_layer.double()
+        for layer in self.linears:
+            layer.double()
+        self.out_layer.double()
 
-        # Concatenate with covariates summary
-        # Check axis
-        concat_pred_in = torch.concat([covariates, summary], axis=1)
+    def forward(self, x):
 
-        treatment_beliefs = self.predictor(concat_pred_in)
+        x = self.in_layer(x)
+        for layer in self.linears:
+            x = layer(x)
+        x = self.out_layer(x)
 
-        return treatment_beliefs
+        return x
 
 
 class InfNetwork(torch.nn.Module):

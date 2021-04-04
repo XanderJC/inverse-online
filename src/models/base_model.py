@@ -13,15 +13,22 @@ class BaseModel(torch.nn.Module):
 
         name = "Base"
 
-    def fit(self, dataset, batch_size=128, validation_set=None, private=False):
+    def fit(
+        self,
+        dataset,
+        epochs=10,
+        batch_size=128,
+        learning_rate=1e-3,
+        validation_set=None,
+    ):
         data_loader = torch.utils.data.DataLoader(
             dataset, batch_size=batch_size, shuffle=True, drop_last=True
         )
         optimizer = torch.optim.Adam(
-            self.parameters(), lr=self.hyper["lr"], betas=self.hyper["adam_betas"]
+            self.parameters(), lr=learning_rate, betas=(0.9, 0.9)
         )
 
-        for epoch in range(self.hyper["epochs"]):
+        for epoch in range(epochs):
             self.train()
             running_loss = 0
             start = time.time()

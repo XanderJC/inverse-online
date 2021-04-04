@@ -17,9 +17,10 @@ class CancerDataset(torch.utils.data.Dataset):
         else:
             raise NotImplementedError
 
-        self.covariates = torch.tensor(data["arr_0"])
-        self.actions = torch.tensor(data["arr_1"])
-        self.outcomes = torch.tensor(data["arr_2"])
+        self.covariates = torch.tensor(data["arr_0"], dtype=torch.double)
+        self.actions = torch.tensor(data["arr_1"], dtype=torch.double)
+        self.outcomes = torch.tensor(data["arr_2"], dtype=torch.double)
+        self.mask = torch.ones(self.outcomes.shape)
 
         self.N = len(self.covariates)
 
@@ -33,6 +34,7 @@ class CancerDataset(torch.utils.data.Dataset):
             self.covariates[index],
             self.actions[index],
             self.outcomes[index],
+            self.mask[index],
         )
 
     def get_whole_batch(self):
