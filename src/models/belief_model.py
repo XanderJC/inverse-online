@@ -148,16 +148,6 @@ class TreatNetwork(torch.nn.Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
-        """
-        self.predictor = torch.nn.ModuleList(
-            [torch.nn.Linear(self.covariate_size + self.summary_size, self.hidden_size)]
-            + [
-                torch.nn.Linear(self.hidden_size, self.hidden_size)
-                for _ in range(self.num_layers)
-            ]
-            + [torch.nn.Linear(self.hidden_size, self.action_size)]
-        )
-        """
         self.in_layer = torch.nn.Linear(
             self.covariate_size + self.summary_size, self.hidden_size
         )

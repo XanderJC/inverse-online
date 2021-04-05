@@ -1,6 +1,6 @@
 from src.data_loading import get_processed_data, get_cancer_sim_data, CancerDataset
 from src.constants import *
-from src.models import BeliefModel
+from src.models import BeliefModel, AdaptiveLinearModel
 
 from pkg_resources import resource_filename
 import numpy as np
@@ -12,8 +12,20 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=128, shuffle=True)
 list_train = list(dataloader)
 batch = list_train[0]
 
-# print(batch[0].shape)
+model = AdaptiveLinearModel(
+    covariate_size=C_COV_DIM,
+    action_size=C_ACT_DIM,
+    outcome_size=C_OUT_DIM,
+    lstm_hidden_size=64,
+    lstm_layers=1,
+    lstm_dropout=0,
+    summary_size=10,
+    fc_hidden_size=64,
+    fc_layers=2,
+)
 
+model.fit(dataset)
+"""
 model = BeliefModel(
     covariate_size=C_COV_DIM,
     action_size=C_ACT_DIM,
@@ -27,7 +39,7 @@ model = BeliefModel(
 )
 
 model.fit(dataset)
-
+"""
 """
 pickle_map = get_cancer_sim_data(
     chemo_coeff=CHEMO_COEFF, radio_coeff=RADIO_COEFF, b_load=False, b_save=False

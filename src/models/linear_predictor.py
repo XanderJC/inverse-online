@@ -2,7 +2,8 @@ import numpy as np
 import torch
 
 from src.constants import *
-from src.models import BaseModel
+from src.models import BaseModel, SummaryNetwork
+import torch.nn.functional as F
 
 
 class AdaptiveLinearModel(BaseModel):
@@ -10,11 +11,11 @@ class AdaptiveLinearModel(BaseModel):
         self,
         covariate_size: int,
         action_size: int,
-        num_treatments: int,
-        summary_size: int,
+        outcome_size: int,
         lstm_hidden_size: int,
         lstm_layers: int,
         lstm_dropout: float,
+        summary_size: int,
         fc_hidden_size: int,
         fc_layers: int,
     ):
@@ -22,7 +23,7 @@ class AdaptiveLinearModel(BaseModel):
 
         self.covariate_size = covariate_size
         self.action_size = action_size
-        self.num_treatments = num_treatments
+        self.outcome_size = outcome_size
         self.summary_size = summary_size
 
         self.lstm_hidden_size = lstm_hidden_size
@@ -33,7 +34,7 @@ class AdaptiveLinearModel(BaseModel):
         self.fc_layers = fc_layers
 
         self.summary_network = SummaryNetwork(
-            input_size=self.covariate_size + self.action_size + self.num_treatments,
+            input_size=self.covariate_size + self.action_size + self.outcome_size,
             output_size=self.summary_size,
             hidden_size=self.lstm_hidden_size,
             num_layers=self.lstm_layers,
@@ -42,29 +43,37 @@ class AdaptiveLinearModel(BaseModel):
 
         self.linear_param_predictor = MLPNetwork(
             input_size=self.summary_size,
-            output_size=(self.covariate_size + 1) * self.num_treatments,
+            output_size=(self.covariate_size + 1) * self.action_size,
             hidden_size=self.fc_hidden_size,
             num_layers=self.fc_layers,
         )
 
     def forward(self, covariates, actions, outcomes):
 
+        batch_size, seq_len, _ = covariates.size()
+
         # Get summary - check axis
-        concat_summary_in = torch.concat([covariates, actions, outcomes], axis=1)
-        print(concat_summary_in.size)
+        concat_summary_in = torch.cat([covariates, actions, outcomes], axis=2)
 
         summary = self.summary_network(concat_summary_in)
         # out: tensor of shape (batch_size, seq_length + 1, output_size)
+
         summary = summary[:, :-1, :]
 
         linear_params = self.linear_param_predictor(summary)
 
         # Augment covariates with constant 1 for bias
+        bias_covariate = torch.ones((batch_size, seq_len, 1))
+        covariates = torch.cat((covariates, bias_covariate), axis=2)
+
         # Format the linear_params matrix
+        linear_params = linear_params.reshape(
+            (batch_size, seq_len, self.covariate_size + 1, self.action_size)
+        )
 
-        treatment_beliefs = torch.matmul(covariates, linear_params)
+        treatment_beliefs = torch.matmul(covariates.unsqueeze(2), linear_params)
 
-        return treatment_beliefs, linear_params
+        return treatment_beliefs.squeeze(), linear_params
 
     def loss(self, batch):
         covariates, actions, outcomes, mask = batch
@@ -73,9 +82,9 @@ class AdaptiveLinearModel(BaseModel):
 
         pred = F.softmax(treatment_beliefs, 2)
         dist = torch.distributions.categorical.Categorical(probs=pred)
-        ll = dist.log_prob(y_series)
+        ll = dist.log_prob(actions.argmax(dim=2))
 
-        return -ll.masked_select(mask.bool()).mean()
+        return -ll.masked_select(mask.squeeze().bool()).mean()
 
 
 class MLPNetwork(torch.nn.Module):
@@ -94,11 +103,25 @@ class MLPNetwork(torch.nn.Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
-        self.predictor = nn.ModuleList(
-            [nn.Linear(self.input_size, self.hidden_size)]
-            + [
-                nn.Linear(self.hidden_size, self.hidden_size)
+        self.in_layer = torch.nn.Linear(self.input_size, self.hidden_size)
+        self.linears = torch.nn.ModuleList(
+            [
+                torch.nn.Linear(self.hidden_size, self.hidden_size)
                 for _ in range(self.num_layers)
             ]
-            + [nn.Linear(self.hidden_size, self.output_size)]
         )
+        self.out_layer = torch.nn.Linear(self.hidden_size, self.output_size)
+
+        self.in_layer.double()
+        for layer in self.linears:
+            layer.double()
+        self.out_layer.double()
+
+    def forward(self, x):
+
+        x = self.in_layer(x)
+        for layer in self.linears:
+            x = layer(x)
+        x = self.out_layer(x)
+
+        return x
