@@ -39,4 +39,4 @@ class CancerDataset(torch.utils.data.Dataset):
 
     def get_whole_batch(self):
         "Returns all data as a single batch"
-        return self.covariates, self.actions, self.outcomes
+        return self.covariates, self.actions, self.outcomes, self.mask
