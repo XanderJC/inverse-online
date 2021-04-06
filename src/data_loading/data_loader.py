@@ -20,7 +20,10 @@ class CancerDataset(torch.utils.data.Dataset):
         self.covariates = torch.tensor(data["arr_0"], dtype=torch.double)
         self.actions = torch.tensor(data["arr_1"], dtype=torch.double)
         self.outcomes = torch.tensor(data["arr_2"], dtype=torch.double)
-        self.mask = torch.ones(self.outcomes.shape)
+
+        self.mask = torch.zeros(self.outcomes.shape)
+        for i, length in enumerate(data["arr_3"]):
+            self.mask[i, : int(length)] = 1
 
         self.N = len(self.covariates)
 

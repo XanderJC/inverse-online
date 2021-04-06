@@ -12,8 +12,9 @@ list_train = list(dataloader)
 batch = list_train[0]
 
 validation_set = CancerDataset(fold="validation").get_whole_batch()
+
 # print(len(validation_set[0]))
-test_set = CancerDataset(fold="test").get_whole_batch()
+# test_set = CancerDataset(fold="test").get_whole_batch()
 
 model = MLPModel(
     covariate_size=C_COV_DIM,
@@ -23,7 +24,7 @@ model = MLPModel(
     num_layers=2,
 )
 
-model.fit(dataset, learning_rate=1e-5, validation_set=test_set)
+model.fit(dataset, learning_rate=1e-5, validation_set=validation_set)
 
 
 model = AdaptiveLinearModel(

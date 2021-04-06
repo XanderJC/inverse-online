@@ -18,6 +18,8 @@ validation_data = pickle_map["validation_data"]
 test_data = pickle_map["test_data_factuals"]
 scaling_data = pickle_map["scaling_data"]
 
+print(training_data["sequence_lengths"][:20])
+
 training_processed = get_processed_data(training_data, scaling_data)
 validation_processed = get_processed_data(validation_data, scaling_data)
 test_processed = get_processed_data(test_data, scaling_data)
@@ -33,18 +35,21 @@ training_data = (
     training_processed["current_covariates"],
     training_processed["current_treatments"],
     training_processed["outputs"],
+    training_data["sequence_lengths"],
 )
 
 validation_data = (
     validation_processed["current_covariates"],
     validation_processed["current_treatments"],
     validation_processed["outputs"],
+    validation_data["sequence_lengths"],
 )
 
 test_data = (
     test_processed["current_covariates"],
     test_processed["current_treatments"],
     test_processed["outputs"],
+    test_data["sequence_lengths"],
 )
 
 
