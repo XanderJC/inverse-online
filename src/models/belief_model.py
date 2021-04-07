@@ -1,7 +1,5 @@
-import numpy as np
 import torch
 
-from src.constants import *
 from src.models import BaseModel
 import torch.nn.functional as F
 
@@ -18,8 +16,11 @@ class BeliefModel(BaseModel):
         summary_size: int,
         pred_hidden_size: int,
         pred_layers: int,
+        **kwargs,
     ):
         super(BeliefModel, self).__init__()
+
+        self.name = "Belief"
 
         self.covariate_size = covariate_size
         self.action_size = action_size

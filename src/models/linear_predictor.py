@@ -1,7 +1,5 @@
-import numpy as np
 import torch
 
-from src.constants import *
 from src.models import BaseModel, SummaryNetwork
 import torch.nn.functional as F
 
@@ -18,8 +16,11 @@ class AdaptiveLinearModel(BaseModel):
         summary_size: int,
         fc_hidden_size: int,
         fc_layers: int,
+        **kwargs,
     ):
         super(AdaptiveLinearModel, self).__init__()
+
+        self.name = "AdaptiveLinear"
 
         self.covariate_size = covariate_size
         self.action_size = action_size

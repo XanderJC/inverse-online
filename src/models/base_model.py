@@ -1,17 +1,14 @@
-import numpy as np
 import torch
 import time
-
+import datetime
 from pkg_resources import resource_filename
-
-from src.constants import *
 
 
 class BaseModel(torch.nn.Module):
     def __init__(self):
         super(BaseModel, self).__init__()
 
-        name = "Base"
+        self.name = "Base"
 
     def fit(
         self,
@@ -43,7 +40,8 @@ class BaseModel(torch.nn.Module):
             end = time.time()
             average_loss = round((running_loss.detach().numpy() / (i + 1)), 5)
             print(
-                f"Epoch {epoch+1} average loss: {average_loss} ({round(end-start,2)} seconds)"
+                f"Epoch {epoch+1} average loss: {average_loss}"
+                + f" ({round(end-start,2)} seconds)"
             )
 
             if validation_set is not None:
@@ -54,5 +52,15 @@ class BaseModel(torch.nn.Module):
         return
 
     def save_model(self):
-        path = resource_filename("src", f"models/saved_models/{self.name}.pth")
+
+        x = datetime.datetime.now()
+        date = x.strftime("%x").replace("/", "")
+        clock = x.strftime("%X")
+        path_tail = f"models/saved_models/{self.name}_{date}_{clock}.pth"
+        path = resource_filename("src", path_tail)
+        torch.save(self.state_dict(), path)
+
+    def save_best(self):
+
+        path = resource_filename("src", f"models/saved_models/{self.name}_best.pth")
         torch.save(self.state_dict(), path)

@@ -1,7 +1,5 @@
-import numpy as np
 import torch
 
-from src.constants import *
 from src.models import BaseModel, MLPNetwork
 import torch.nn.functional as F
 
@@ -14,8 +12,11 @@ class MLPModel(BaseModel):
         outcome_size: int,
         hidden_size: int,
         num_layers: int,
+        **kwargs,
     ):
         super(MLPModel, self).__init__()
+
+        self.name = "MLP"
 
         self.covariate_size = covariate_size
         self.action_size = action_size
