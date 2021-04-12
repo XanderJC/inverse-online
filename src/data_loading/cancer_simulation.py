@@ -949,6 +949,8 @@ def plot_treatments(patient):
     df = pd.DataFrame(
         {
             "N(t)": outputs["cancer_volume"][patient],
+            # "C(t)": outputs["chemo_application"][patient],
+            # "d(t)": outputs["radio_application"][patient],
             "C(t)": outputs["chemo_application"][patient],
             "d(t)": outputs["radio_application"][patient],
         }
@@ -1121,7 +1123,7 @@ if __name__ == "__main__":
     print(outputs["cancer_volume"][:10])
     print(outputs["chemo_probabilities"][:10])
     print(outputs["radio_probabilities"][:10])
-
+    print(outputs["radio_application"][:10])
     # Plot patient
     plot_treatments(90)
     # plot_treatments(63)

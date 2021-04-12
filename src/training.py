@@ -1,6 +1,11 @@
+from src.data_loading import CancerDataset
 from src.constants import C_COV_DIM, C_ACT_DIM, C_OUT_DIM
 
 from src.models import BeliefModel, AdaptiveLinearModel, MLPModel  # noqa: F401
+
+
+dataset = CancerDataset()
+validation_set = CancerDataset(fold="validation").get_whole_batch()
 
 hyperparams = {
     "covariate_size": C_COV_DIM,
@@ -18,19 +23,5 @@ hyperparams = {
 
 model = AdaptiveLinearModel
 model = model(**hyperparams)
-model.load_model()
-
-from src.data_loading import CancerDataset
-import torch.nn.functional as F
-import matplotlib.pyplot as plt
-import numpy as np
-
-validation_set = CancerDataset(fold="validation").get_whole_batch()
-
-# print(F.softmax(model.forward(*validation_set[:3])[0], 2))
-
-params = model.forward(*validation_set[:3])[1]
-patient_0_0 = np.array(params[0, :, :, 0].detach())
-
-plt.plot(list(range(59)), patient_0_0)
-plt.show()
+model.fit(dataset, epochs=20, learning_rate=1e-4, validation_set=validation_set)
+model.save_best()

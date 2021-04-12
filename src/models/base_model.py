@@ -60,6 +60,13 @@ class BaseModel(torch.nn.Module):
         path = resource_filename("src", path_tail)
         torch.save(self.state_dict(), path)
 
+    def load_model(self, path=None):
+
+        if path is None:
+            path = resource_filename("src", f"models/saved_models/{self.name}_best.pth")
+        self.load_state_dict(torch.load(path))
+        pass
+
     def save_best(self):
 
         path = resource_filename("src", f"models/saved_models/{self.name}_best.pth")
