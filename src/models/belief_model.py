@@ -4,7 +4,9 @@ from src.models import BaseModel
 from src.models.utils import reverse_sequence
 from src.models.optimal_treatment_rules import OTR, NormalisedRatio
 from src.models.cate_nets import CATENet, TreatNetwork
-import torch.nn.functional as F
+
+# import torch.nn.functional as F
+from torch.distributions.kl import kl_divergence
 
 
 class BeliefModel(BaseModel):
@@ -63,32 +65,25 @@ class BeliefModel(BaseModel):
             num_layers=self.pred_layers,
         )
 
-    def forward(self, covariates, actions, outcomes):
+    def kl_div(self, posterior_params, prior_params):
+        post_mean, post_lstd = posterior_params
+        post_dist = torch.distributions.Normal(post_mean, torch.exp(post_lstd))
 
-        # Get summary - check axis
-        concat_summary_in = torch.cat([covariates, actions, outcomes], axis=2)
+        prior_mean, prior_lstd = prior_params
+        prior_dist = torch.distributions.Normal(prior_mean, torch.exp(prior_lstd))
 
-        summary = self.summary_network(concat_summary_in)
-        # out: tensor of shape (batch_size, seq_length + 1, output_size)
+        return kl_divergence(post_dist, prior_dist)
 
-        summary = summary[:, :-1, :]
+    def sample_beliefs(self, posterior_params):
 
-        # Concatenate with covariates summary
-        concat_pred_in = torch.cat((covariates, summary), axis=2)
+        post_mean, post_lstd = posterior_params
+        post_dist = torch.distributions.Normal(post_mean, torch.exp(post_lstd))
 
-        treatment_beliefs = self.treatment_network(concat_pred_in)
+        sample = post_dist.sample()
+        y_hat_1 = sample[1]
+        y_hat_0 = sample[0]
 
-        return treatment_beliefs
-
-    def loss_old(self, batch):
-        covariates, actions, outcomes, mask = batch
-
-        pred = F.softmax(self.forward(covariates, actions, outcomes), 2)
-        dist = torch.distributions.Categorical(probs=pred)
-
-        ll = dist.log_prob(actions.argmax(dim=2))
-
-        return -ll.masked_select(mask.squeeze().bool()).mean()
+        return y_hat_1, y_hat_0
 
     def loss(self, batch):
         covariates, actions, outcomes, mask = batch
@@ -121,10 +116,21 @@ class BeliefModel(BaseModel):
         # Calculate KL divergence
         # ----------------------------------------------
 
+        kl_loss = self.kl_div(posterior_params, prior_params)
+        kl_loss = kl_loss.masked_select(mask.squeeze().bool()).mean()
+
         # Sample from posterior and calculate likelihood
         # ----------------------------------------------
 
-        return
+        y_hat_1, y_hat_0 = self.sample_beliefs(posterior_params)
+
+        pred = self.treatment_rule(y_hat_1, y_hat_0)
+        dist = torch.distributions.Categorical(probs=pred)
+        ll = dist.log_prob(actions.argmax(dim=2))
+
+        neg_log_likelihood = -ll.masked_select(mask.squeeze().bool()).mean()
+
+        return neg_log_likelihood + kl_loss
 
 
 class SummaryNetwork(torch.nn.Module):
