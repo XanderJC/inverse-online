@@ -18,7 +18,7 @@ class BeliefModel(BaseModel):
         lstm_hidden_size: int,
         lstm_layers: int,
         lstm_dropout: float,
-        memory_size: int,
+        summary_size: int,
         pred_hidden_size: int,
         pred_layers: int,
         outcome_network: CATENet = TreatNetwork,
@@ -32,7 +32,7 @@ class BeliefModel(BaseModel):
         self.covariate_size = covariate_size
         self.action_size = action_size
         self.outcome_size = outcome_size
-        self.memory_size = memory_size
+        self.summary_size = summary_size
 
         self.lstm_hidden_size = lstm_hidden_size
         self.lstm_layers = lstm_layers
@@ -41,9 +41,9 @@ class BeliefModel(BaseModel):
         self.pred_hidden_size = pred_hidden_size
         self.pred_layers = pred_layers
 
-        self.memory_network = SummaryNetwork(
+        self.summary_network = SummaryNetwork(
             input_size=self.covariate_size + self.action_size + self.outcome_size,
-            output_size=self.memory_size,
+            output_size=self.summary_size,
             hidden_size=self.lstm_hidden_size,
             num_layers=self.lstm_layers,
             dropout=self.lstm_dropout,
@@ -52,7 +52,7 @@ class BeliefModel(BaseModel):
         self.outcome_network = outcome_network(
             covariate_size=self.covariate_size,
             action_size=self.action_size,
-            memory_size=self.memory_size,
+            summary_size=self.summary_size,
             hidden_size=self.pred_hidden_size,
             num_layers=self.pred_layers,
         )
@@ -60,7 +60,7 @@ class BeliefModel(BaseModel):
         self.inference_network = InfNetwork(
             covariate_size=self.covariate_size,
             action_size=self.action_size,
-            memory_size=self.memory_size,
+            summary_size=self.summary_size,
             hidden_size=self.pred_hidden_size,
             num_layers=self.pred_layers,
         )
@@ -79,9 +79,11 @@ class BeliefModel(BaseModel):
         post_mean, post_lstd = posterior_params
         post_dist = torch.distributions.Normal(post_mean, torch.exp(post_lstd))
 
-        memory_sample = post_dist.sample()
+        sample = post_dist.sample()
+        y_hat_1 = sample[1]
+        y_hat_0 = sample[0]
 
-        return memory_sample
+        return y_hat_1, y_hat_0
 
     def loss(self, batch):
         covariates, actions, outcomes, mask = batch
@@ -164,6 +166,9 @@ class SummaryNetwork(torch.nn.Module):
         )
         self.lstm.double()
 
+        self.fc = torch.nn.Linear(self.hidden_size, self.output_size)
+        self.fc.double()
+
     def forward(self, x):
 
         # First get summary of previous history of everything with the LSTM
@@ -173,10 +178,11 @@ class SummaryNetwork(torch.nn.Module):
         out, _ = self.lstm(x.double(), (h0, c0))
         # out: tensor of shape (batch_size, seq_length, hidden_size)
 
-        init_out = h0[-1, 0, :].expand(x.size(0), 1, self.hidden_size)
+        out = self.fc(out)
+        init_out = self.fc(h0[-1, 0, :].expand(x.size(0), 1, self.hidden_size))
         out = torch.cat((init_out, out), axis=1)
 
-        # out: tensor of shape (batch_size, seq_length+1, hidden_size)
+        # out: tensor of shape (batch_size, seq_length+1, output_size)
 
         return out
 
