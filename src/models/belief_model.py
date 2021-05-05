@@ -92,24 +92,23 @@ class BeliefModel(BaseModel):
         # Get summary - check axis
         concat_summary_in = torch.cat([covariates, actions, outcomes], axis=2)
 
-        summary = self.summary_network(concat_summary_in)
+        hidden_state = self.memory_network(concat_summary_in)
         # out: tensor of shape (batch_size, seq_length + 1, output_size)
 
         # Take summary so time step i doesn't include info from i
-        summary = summary[:, :-1, :]
+        hidden_state = hidden_state[:, :-1, :]
 
         # Predict prior with forward model
         # ----------------------------------------------
 
-        # Concatenate with covariates summary
-        concat_pred_in = torch.cat((covariates, summary), axis=2)
+        prior_params = self.memory_network_fc(hidden_state)
 
-        prior_params = self.outcome_network(concat_pred_in)
+        # predicted_outcomes = self.outcome_network(concat_pred_in)
 
         # Predict posterior with inference network
         # ----------------------------------------------
 
-        posterior_params = self.inference_network(covariates, summary, mask)
+        posterior_params = self.inference_network(concat_summary_in, hidden_state, mask)
 
         # Calculate KL divergence
         # ----------------------------------------------
@@ -120,7 +119,13 @@ class BeliefModel(BaseModel):
         # Sample from posterior and calculate likelihood
         # ----------------------------------------------
 
-        y_hat_1, y_hat_0 = self.sample_beliefs(posterior_params)
+        # Concatenate with covariates summary
+
+        memory = self.sample_memory(posterior_params)
+
+        concat_pred_in = torch.cat((covariates, memory), axis=2)
+
+        y_hat_1, y_hat_0 = self.outcome_network(concat_pred_in)
 
         pred = self.treatment_rule(y_hat_1, y_hat_0)
         dist = torch.distributions.Categorical(probs=pred)
@@ -181,52 +186,9 @@ class SummaryNetwork(torch.nn.Module):
         return out
 
 
-class TreatNetwork(torch.nn.Module):
-    def __init__(
-        self,
-        covariate_size: int,
-        action_size: int,
-        summary_size: int,
-        hidden_size: int,
-        num_layers: int,
-    ):
-        super(TreatNetwork, self).__init__()
-
-        self.covariate_size = covariate_size
-        self.action_size = action_size
-        self.summary_size = summary_size
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-
-        self.in_layer = torch.nn.Linear(
-            self.covariate_size + self.summary_size, self.hidden_size
-        )
-        self.linears = torch.nn.ModuleList(
-            [
-                torch.nn.Linear(self.hidden_size, self.hidden_size)
-                for _ in range(self.num_layers)
-            ]
-        )
-        self.out_layer = torch.nn.Linear(self.hidden_size, self.action_size)
-
-        self.in_layer.double()
-        for layer in self.linears:
-            layer.double()
-        self.out_layer.double()
-
-    def forward(self, x):
-
-        x = self.in_layer(x)
-        for layer in self.linears:
-            x = layer(x)
-        x = self.out_layer(x)
-
-        return x
-
-
 class InfNetwork(torch.nn.Module):
     """
-    Network that needs to
+    Network that approximates posterior distribution of the memory.
     """
 
     def __init__(
@@ -246,7 +208,8 @@ class InfNetwork(torch.nn.Module):
         self.num_layers = num_layers
 
         self.in_layer = torch.nn.Linear(
-            self.covariate_size + self.summary_size, self.hidden_size
+            self.covariate_size + self.action_size + 1 + self.summary_size,
+            self.hidden_size,
         )
         self.linears = torch.nn.ModuleList(
             [
