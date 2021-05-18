@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 from scipy.special import expit
 
@@ -150,6 +151,34 @@ def generate_samples_rational_linear_agent(
     return X, y, a, pi, betas
 
 
+class SimDataset(torch.utils.data.Dataset):
+    def __init__(self):
+        super(SimDataset, self).__init__()
+
+        self.covariates = None
+        self.actions = None
+        self.outcomes = None
+        self.mask = None
+        self.N = None
+
+    def __len__(self):
+        "Total number of samples"
+        return self.N
+
+    def __getitem__(self, index):
+        "Generates one batch of data"
+        return (
+            self.covariates[index],
+            self.actions[index],
+            self.outcomes[index],
+            self.mask[index],
+        )
+
+    def get_whole_batch(self):
+        "Returns all data as a single batch"
+        return self.covariates, self.actions, self.outcomes, self.mask
+
+
 def generate_linear_dataset(num_trajs, max_len, seed=41310):
 
     np.random.seed(seed)
@@ -167,7 +196,18 @@ def generate_linear_dataset(num_trajs, max_len, seed=41310):
         A[i] = a
         Y[i] = y
 
-    return X, A, Y, M
+    dataset = SimDataset()
+
+    dataset.covariates = torch.tensor(X)
+    dataset.actions = torch.tensor(A, dtype=int)
+    # dataset.actions = torch.ones(dataset.actions.shape)
+    # dataset.actions = torch.tensor(dataset.actions, dtype=int)
+    dataset.outcomes = torch.tensor(Y)
+    dataset.mask = torch.tensor(M, dtype=int)
+
+    dataset.N = len(dataset.covariates)
+
+    return dataset
 
 
 if __name__ == "__main__":

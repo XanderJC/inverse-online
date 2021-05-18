@@ -15,3 +15,12 @@ RADIO_COEFF = 2
 C_COV_DIM = 2
 C_ACT_DIM = 4
 C_OUT_DIM = 1
+
+
+"""
+Constants for the basic simulation code
+"""
+
+SIM_COV_DIM = 5
+SIM_ACT_DIM = 2
+SIM_OUT_DIM = 1

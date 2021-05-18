@@ -1,7 +1,7 @@
 import torch
 
 
-class CATENet(torch.nn.module):
+class CATENet(torch.nn.Module):
     def __init__(self):
         super(CATENet, self).__init__()
         self.name = "name"
