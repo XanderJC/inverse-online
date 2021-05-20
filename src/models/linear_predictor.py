@@ -154,8 +154,8 @@ class AdaptiveLinearModel(BaseModel):
 
         kl_loss = self.kl_div(posterior_params, prior_params)
         kl_loss = kl_loss.mean(axis=2)
-        # print("kl_loss:")
-        # print(kl_loss.shape)
+        #print("kl_loss:")
+        #print(kl_loss)
 
         kl_loss = kl_loss.masked_select(mask.squeeze().bool()).mean()
 
@@ -190,7 +190,34 @@ class AdaptiveLinearModel(BaseModel):
         neg_log_likelihood = -ll.masked_select(mask.squeeze().bool()).mean()
         # print(neg_log_likelihood)
         # print(kl_loss)
-        return neg_log_likelihood + kl_loss
+        return neg_log_likelihood + (1 * kl_loss)
+
+    def validation(self, batch):
+        covariates, actions, outcomes, mask = batch
+
+        actions = F.one_hot(actions)
+
+        history = torch.cat([covariates, actions, outcomes.unsqueeze(2)], axis=2)
+
+        hidden_state, prior_params = self.memory_network(history)
+
+        prior_params = prior_params[:, :-1, :]
+
+        memory = self.sample_memory(prior_params)
+
+        treatment_effect = self.outcome_network(covariates, memory)
+
+        pred = self.treatment_rule(treatment_effect)
+
+        dist = torch.distributions.Categorical(probs=pred)
+        ll = dist.log_prob(actions.argmax(dim=2))
+
+        neg_log_likelihood = -ll.masked_select(mask.squeeze().bool()).mean()
+
+        acc = ((pred * actions).sum(axis=2) > 0.5).float().mean()
+
+        loss_dict = {"NLL": neg_log_likelihood.detach(), "ACC": acc.detach()}
+        return loss_dict
 
 
 class TreatRule(torch.nn.Module):
@@ -263,8 +290,11 @@ class TENetwork(torch.nn.Module):
         omega_0 = self.weight_layer_0(x)
         omega_1 = self.weight_layer_1(x)
 
-        b_0 = self.bias_layer_0(x)
-        b_1 = self.bias_layer_1(x)
+        # b_0 = self.bias_layer_0(x)
+        # b_1 = self.bias_layer_1(x)
+
+        b_0 = 0
+        b_1 = 0
 
         # omega_0 = omega_0.reshape((batch_size * seq_length, dim, 1))
         # omega_1 = omega_1.reshape((batch_size * seq_length, dim, 1))

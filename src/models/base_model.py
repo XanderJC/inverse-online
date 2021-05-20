@@ -46,8 +46,10 @@ class BaseModel(torch.nn.Module):
 
             if validation_set is not None:
                 self.eval()
-                validation_loss = round(float(self.loss(validation_set).detach()), 5)
-                print(f"Epoch {epoch+1} validation loss: {validation_loss}")
+                metrics = self.validation(validation_set)
+                for metric in metrics.keys():
+                    met = round(float(metrics[metric]), 5)
+                    print(f"Epoch {epoch+1} {metric}: {met}")
 
         return
 

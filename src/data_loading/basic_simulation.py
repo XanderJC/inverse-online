@@ -70,9 +70,10 @@ def normal_covariate_model(n, d, rho=0.3, var=1 / 20):
 def mu0_linear(X, sparsity: float = 0.5, return_model_params: bool = True):
     # linear function of X
     n_cov = X.shape[1]
-    beta = np.random.choice(
-        [0, 1], replace=True, size=n_cov, p=[1 - sparsity, sparsity]
-    )
+    # beta = np.random.choice(
+    #    [0, 1], replace=True, size=n_cov, p=[1 - sparsity, sparsity]
+    # )
+    beta = np.array([1, 1, 0, 0, 1])
     mu0 = np.dot(X, beta)
     if return_model_params:
         return mu0, beta
@@ -83,9 +84,10 @@ def mu0_linear(X, sparsity: float = 0.5, return_model_params: bool = True):
 def mu1_linear(X, mu_0, sparsity: float = 0.5, return_model_params: bool = True):
     # linear function of X, add to mu_0
     n_cov = X.shape[1]
-    beta = np.random.choice(
-        [0, 1], replace=True, size=n_cov, p=[1 - sparsity, sparsity]
-    )
+    # beta = np.random.choice(
+    #    [0, 1], replace=True, size=n_cov, p=[1 - sparsity, sparsity]
+    # )
+    beta = np.array([0, 1, 1, 0, 0])
     mu1 = np.dot(X, beta) + mu_0
     if return_model_params:
         return mu1, beta
@@ -178,6 +180,13 @@ class SimDataset(torch.utils.data.Dataset):
         "Returns all data as a single batch"
         return self.covariates, self.actions, self.outcomes, self.mask
 
+    def cut_start_sequence(self, num):
+
+        self.covariates = self.covariates[:, num:, :]
+        self.actions = self.actions[:, num:]
+        self.outcomes = self.outcomes[:, num:]
+        self.mask = self.mask[:, num:]
+
 
 def generate_linear_dataset(num_trajs, max_len, seed=41310):
 
@@ -211,7 +220,7 @@ def generate_linear_dataset(num_trajs, max_len, seed=41310):
 
 
 if __name__ == "__main__":
-    n_steps = 5000
+    n_steps = 2500
     data, params = simulate_x_and_pos(n=n_steps, seed=5)
     X, y, a, pi, betas = generate_samples_rational_linear_agent(data)
     print(
