@@ -55,10 +55,7 @@ class AdaptiveLinearModel(BaseModel):
         self.inf_fc_size = inf_fc_size
 
         self.memory_network = SummaryNetwork(
-            input_size=self.memory_size
-            + self.covariate_size
-            + self.action_size
-            + self.outcome_size,
+            input_size=self.covariate_size + self.action_size + self.outcome_size,
             memory_size=self.memory_size,
             hidden_size=self.memory_hidden_size,
             num_layers=self.memory_layers,
@@ -81,10 +78,6 @@ class AdaptiveLinearModel(BaseModel):
             memory_hidden_size=self.memory_hidden_size,
             hidden_size=self.inf_hidden_size,
             num_layers=self.inf_layers,
-        )
-
-        self.prior = torch.nn.Parameter(
-            torch.ones((1, 1, self.memory_size * 2), dtype=torch.double)
         )
 
     def kl_div(self, posterior_params, prior_params):
@@ -114,7 +107,6 @@ class AdaptiveLinearModel(BaseModel):
         # Get summary of past at each step
         # ----------------------------------------------
 
-        batch_size, seq_length, output_size = covariates.shape
         # Get summary - check axis
         # print("covariates:")
         # print(covariates.shape)
@@ -132,63 +124,12 @@ class AdaptiveLinearModel(BaseModel):
         # print("history:")
         # print(history.shape)
 
-        prior_params = torch.zeros((batch_size, seq_length, self.memory_size * 2))
-        posterior_params = torch.zeros((batch_size, seq_length, self.memory_size * 2))
+        hidden_state, prior_params = self.memory_network(history)
+        # out: tensor of shape (batch_size, seq_length + 1, output_size)
 
-        memories = torch.zeros((batch_size, seq_length, self.memory_size))
-
-        # print("self.prior:")
-        # print(self.prior.shape)
-
-        batch_prior = self.prior.expand(batch_size, 1, self.memory_size * 2)
-
-        # print("batch_prior:")
-        # print(batch_prior.shape)
-
-        prior_params[:, 0, :] = batch_prior.squeeze()
-
-        future_state = self.inference_network.summarise_future(history, mask)
-
-        # print("future_state:")
-        # print(future_state.shape)
-
-        posterior = self.inference_network(
-            torch.zeros(batch_size, self.memory_size), future_state[:, 0, :]
-        )
-
-        # print("posterior:")
-        # print(posterior.shape)
-
-        memory = self.sample_memory(posterior.unsqueeze(1))
-
-        # print("memory:")
-        # print(memory.shape)
-
-        posterior_params[:, 0, :] = posterior
-        memories[:, 0, :] = memory.squeeze()
-
-        for t in range(seq_length - 1):
-
-            previous_memory = memories[:, t, :]
-
-            # print("previous_memory:")
-            # print(previous_memory.shape)
-
-            concat = torch.cat((previous_memory, history[:, t, :]), 1)
-
-            # print("concat:")
-            # print(concat.shape)
-
-            next_prior = self.memory_network(concat)
-
-            posterior = self.inference_network(previous_memory, future_state[:, t, :])
-
-            memory = self.sample_memory(posterior.unsqueeze(1))
-
-            prior_params[:, t + 1, :] = next_prior
-            posterior_params[:, t + 1, :] = posterior
-
-            memories[:, t + 1, :] = memory.squeeze()
+        # Take summary so time step i doesn't include info from i
+        prior_params = prior_params[:, :-1, :]
+        hidden_state = hidden_state[:, :-1, :]
 
         # print("prior_params:")
         # print(prior_params.shape)
@@ -201,6 +142,11 @@ class AdaptiveLinearModel(BaseModel):
         # prior_params = self.memory_network_fc(hidden_state)
 
         # predicted_outcomes = self.outcome_network(concat_pred_in)
+
+        # Predict posterior with inference network
+        # ----------------------------------------------
+
+        posterior_params = self.inference_network(history, hidden_state, mask)
 
         # print("posterior_params:")
         # print(posterior_params.shape)
@@ -218,12 +164,16 @@ class AdaptiveLinearModel(BaseModel):
         # Sample from posterior and calculate likelihood
         # ----------------------------------------------
 
+        # Concatenate with covariates summary
+
+        memory = self.sample_memory(posterior_params)
+
         # memory = posterior_params
 
         # print("memory:")
         # print(memory.shape)
 
-        treatment_effect = self.outcome_network(covariates, memories)
+        treatment_effect = self.outcome_network(covariates, memory)
 
         # print("treatment_effect:")
         # print(treatment_effect.shape)
@@ -247,50 +197,22 @@ class AdaptiveLinearModel(BaseModel):
     def validation(self, batch):
         covariates, actions, outcomes, mask = batch
 
-        batch_size, seq_length, output_size = covariates.shape
+        batch_size, seq_length = actions.shape
 
         actions = F.one_hot(actions)
 
         history = torch.cat([covariates, actions, outcomes.unsqueeze(2)], axis=2)
 
-        prior_params = torch.zeros((batch_size, seq_length, self.memory_size * 2))
-        posterior_params = torch.zeros((batch_size, seq_length, self.memory_size * 2))
+        hidden_state, prior_params = self.memory_network(history)
 
-        memories = torch.zeros((batch_size, seq_length, self.memory_size))
+        prior_params = prior_params[:, :-1, :]
+        hidden_state = hidden_state[:, :-1, :]
 
-        batch_prior = self.prior.expand(batch_size, 1, self.memory_size * 2)
+        # posterior_params = self.inference_network(history, hidden_state, mask)
 
-        prior_params[:, 0, :] = batch_prior.squeeze()
+        memory = self.sample_memory(prior_params)
 
-        future_state = self.inference_network.summarise_future(history, mask)
-
-        posterior = self.inference_network(
-            torch.zeros(batch_size, self.memory_size), future_state[:, 0, :]
-        )
-
-        memory = self.sample_memory(posterior.unsqueeze(1))
-
-        posterior_params[:, 0, :] = posterior
-        memories[:, 0, :] = memory.squeeze()
-
-        for t in range(seq_length - 1):
-
-            previous_memory = memories[:, t, :]
-
-            concat = torch.cat((previous_memory, history[:, t, :]), 1)
-
-            next_prior = self.memory_network(concat)
-
-            posterior = self.inference_network(previous_memory, future_state[:, t, :])
-
-            memory = self.sample_memory(next_prior.unsqueeze(1))
-
-            prior_params[:, t + 1, :] = next_prior
-            posterior_params[:, t + 1, :] = posterior
-
-            memories[:, t + 1, :] = memory.squeeze()
-
-        treatment_effect = self.outcome_network(covariates, memories)
+        treatment_effect = self.outcome_network(covariates, memory)
 
         pred = self.treatment_rule(treatment_effect)
 
@@ -318,48 +240,16 @@ class AdaptiveLinearModel(BaseModel):
     def inspection(self, batch):
         covariates, actions, outcomes, mask = batch
 
-        batch_size, seq_length, output_size = covariates.shape
-
         actions = F.one_hot(actions)
 
         history = torch.cat([covariates, actions, outcomes.unsqueeze(2)], axis=2)
 
-        prior_params = torch.zeros((batch_size, seq_length, self.memory_size * 2))
-        posterior_params = torch.zeros((batch_size, seq_length, self.memory_size * 2))
+        hidden_state, prior_params = self.memory_network(history)
 
-        memories = torch.zeros((batch_size, seq_length, self.memory_size))
+        prior_params = prior_params[:, :-1, :]
+        hidden_state = hidden_state[:, :-1, :]
 
-        batch_prior = self.prior.expand(batch_size, 1, self.memory_size * 2)
-
-        prior_params[:, 0, :] = batch_prior.squeeze()
-
-        future_state = self.inference_network.summarise_future(history, mask)
-
-        posterior = self.inference_network(
-            torch.zeros(batch_size, self.memory_size), future_state[:, 0, :]
-        )
-
-        memory = self.sample_memory(posterior.unsqueeze(1))
-
-        posterior_params[:, 0, :] = posterior
-        memories[:, 0, :] = memory.squeeze()
-
-        for t in range(seq_length - 1):
-
-            previous_memory = memories[:, t, :]
-
-            concat = torch.cat((previous_memory, history[:, t, :]), 1)
-
-            next_prior = self.memory_network(concat)
-
-            posterior = self.inference_network(previous_memory, future_state[:, t, :])
-
-            memory = self.sample_memory(next_prior.unsqueeze(1))
-
-            prior_params[:, t + 1, :] = next_prior
-            posterior_params[:, t + 1, :] = posterior
-
-            memories[:, t + 1, :] = memory.squeeze()
+        posterior_params = self.inference_network(history, hidden_state, mask)
 
         memory_prior = self.sample_memory(prior_params)
 
@@ -395,12 +285,8 @@ class TreatRule(torch.nn.Module):
         self,
     ):
         super(TreatRule, self).__init__()
-
-        # self.alpha = torch.nn.Parameter(torch.ones((1), dtype=torch.double))
-        # self.beta = torch.nn.Parameter(torch.zeros((1), dtype=torch.double))
-
-        self.alpha = torch.ones((1), dtype=torch.double)
-        self.beta = torch.zeros((1), dtype=torch.double)
+        self.alpha = torch.nn.Parameter(torch.ones((1), dtype=torch.double))
+        self.beta = torch.nn.Parameter(torch.zeros((1), dtype=torch.double))
 
     def forward(self, treatment_effect):
 
@@ -457,18 +343,18 @@ class TENetwork(torch.nn.Module):
 
         batch_size, seq_length, dim = covariates.shape
 
-        x = self.in_layer(memory.double())
+        x = self.in_layer(memory)
         for layer in self.linears:
             x = F.elu(layer(x))
 
         omega_0 = self.weight_layer_0(x)
         omega_1 = self.weight_layer_1(x)
 
-        b_0 = self.bias_layer_0(x)
-        b_1 = self.bias_layer_1(x)
+        # b_0 = self.bias_layer_0(x)
+        # b_1 = self.bias_layer_1(x)
 
-        # b_0 = 0
-        # b_1 = 0
+        b_0 = 0
+        b_1 = 0
 
         # omega_0 = omega_0.reshape((batch_size * seq_length, dim, 1))
         # omega_1 = omega_1.reshape((batch_size * seq_length, dim, 1))
@@ -522,30 +408,42 @@ class SummaryNetwork(torch.nn.Module):
         self.num_layers = num_layers
         self.dropout = dropout
 
-        self.in_layer = torch.nn.Linear(self.input_size, self.hidden_size)
-        self.in_layer.double()
-
-        self.linears = torch.nn.ModuleList(
-            [
-                torch.nn.Linear(self.hidden_size, self.hidden_size)
-                for _ in range(self.num_layers)
-            ]
+        self.h0 = torch.nn.Parameter(
+            torch.zeros((self.num_layers, 1, self.hidden_size), dtype=torch.double)
         )
-        for layer in self.linears:
-            layer.double()
+        self.c0 = torch.nn.Parameter(
+            torch.zeros((self.num_layers, 1, self.hidden_size), dtype=torch.double)
+        )
+
+        self.lstm = torch.nn.LSTM(
+            self.input_size,
+            self.hidden_size,
+            self.num_layers,
+            batch_first=True,
+            dropout=self.dropout,
+        )
+        self.lstm.double()
 
         self.fc_layer = torch.nn.Linear(self.hidden_size, self.memory_size * 2)
         self.fc_layer.double()
 
     def forward(self, x):
 
-        x = torch.sigmoid(self.in_layer(x))
-        for layer in self.linears:
-            x = torch.sigmoid(layer(x))
+        # First get summary of previous history of everything with the LSTM
+        h0 = self.h0.expand(self.num_layers, x.size(0), self.hidden_size)
+        c0 = self.c0.expand(self.num_layers, x.size(0), self.hidden_size)
 
-        x = self.fc_layer(x)
+        out, _ = self.lstm(x.double(), (h0, c0))
+        # out: tensor of shape (batch_size, seq_length, hidden_size)
 
-        return x
+        init_out = h0[-1, 0, :].expand(x.size(0), 1, self.hidden_size)
+        out = torch.cat((init_out, out), axis=1)
+
+        # print("out")
+        # print(out.shape)
+        # out: tensor of shape (batch_size, seq_length+1, hidden_size)
+
+        return out, self.fc_layer(out)
 
 
 class InfNetwork(torch.nn.Module):
@@ -574,7 +472,7 @@ class InfNetwork(torch.nn.Module):
         self.input_size = self.covariate_size + self.action_size + 1
 
         self.in_layer = torch.nn.Linear(
-            self.memory_size + self.hidden_size,
+            self.memory_hidden_size + self.hidden_size,
             self.hidden_size,
         )
         self.linears = torch.nn.ModuleList(
@@ -605,7 +503,7 @@ class InfNetwork(torch.nn.Module):
         )
         self.lstm.double()
 
-    def summarise_future(self, x, mask):
+    def forward(self, x, memory_embedding, mask):
 
         # Reverse ordering of x
         rev_x = reverse_sequence(x, mask)
@@ -623,11 +521,13 @@ class InfNetwork(torch.nn.Module):
         # Reverse hidden state again
         re_rev_out = reverse_sequence(out, mask)
 
-        return re_rev_out
+        full_embedding = torch.cat((memory_embedding, re_rev_out), 2)
 
-    def forward(self, memory, future_state):
+        # print("memory_embedding")
+        # print(memory_embedding.shape)
 
-        full_embedding = torch.cat((memory, future_state), 1)
+        # print("re_rev_out")
+        # print(re_rev_out.shape)
 
         x = F.elu(self.in_layer(full_embedding))
         for layer in self.linears:

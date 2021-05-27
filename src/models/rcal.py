@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score
 
 
-class CIRL(BaseModel):
+class RCAL(BaseModel):
     def __init__(
         self,
         covariate_size: int,
@@ -14,9 +14,9 @@ class CIRL(BaseModel):
         hidden_size: int,
         **kwargs,
     ):
-        super(CIRL, self).__init__()
+        super(RCAL, self).__init__()
 
-        self.name = "CIRL"
+        self.name = "RCAL"
         self.covariate_size = covariate_size
         self.action_size = action_size
         self.hidden_size = hidden_size
@@ -30,8 +30,8 @@ class CIRL(BaseModel):
 
     def forward(self, x):
 
-        x = torch.sigmoid(self.linear1(x))
-        x = torch.sigmoid(self.linear2(x))
+        x = F.elu(self.linear1(x))
+        x = F.elu(self.linear2(x))
         x = self.linear3(x)
 
         return x
@@ -39,16 +39,21 @@ class CIRL(BaseModel):
     def loss(self, batch):
         covariates, actions, outcomes, mask = batch
 
-        pred = self.forward(covariates)
-        actions = F.one_hot(actions)
+        q_values = self.forward(covariates)
+        pred = F.softmax(q_values, dim=2)
 
-        pred = pred * actions
+        dist = torch.distributions.Categorical(probs=pred)
+        ll = dist.log_prob(actions)
 
-        dist = pred.sum(axis=2) - outcomes
+        neg_log_likelihood = -ll.masked_select(mask.squeeze().bool()).mean()
 
-        sq_diff = (dist ** 2).mean()
+        next_q_values = q_values.logsumexp(2) / 2
 
-        return sq_diff
+        q_diff = q_values[:, :-1, :] - next_q_values[:, 1:].unsqueeze(2)
+
+        loss_reg = torch.abs(q_diff).mean() * 0.1
+
+        return neg_log_likelihood + loss_reg
 
     def validation(self, batch):
         covariates, actions, outcomes, mask = batch

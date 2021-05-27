@@ -53,23 +53,34 @@ class BaseModel(torch.nn.Module):
 
         return
 
-    def save_model(self):
+    def save_model(self, name=None):
 
-        x = datetime.datetime.now()
-        date = x.strftime("%x").replace("/", "")
-        clock = x.strftime("%X")
-        path_tail = f"models/saved_models/{self.name}_{date}_{clock}.pth"
+        if name is None:
+            x = datetime.datetime.now()
+            date = x.strftime("%x").replace("/", "")
+            clock = x.strftime("%X")
+            path_tail = f"models/saved_models/{self.name}_{date}_{clock}.pth"
+        else:
+            path_tail = f"models/saved_models/{self.name}_{name}.pth"
         path = resource_filename("src", path_tail)
         torch.save(self.state_dict(), path)
 
-    def load_model(self, path=None):
+        return
 
-        if path is None:
-            path = resource_filename("src", f"models/saved_models/{self.name}_best.pth")
+    def load_model(self, name=None):
+
+        if name is None:
+            path_tail = f"models/saved_models/{self.name}_best.pth"
+        else:
+            path_tail = f"models/saved_models/{self.name}_{name}.pth"
+        path = resource_filename("src", path_tail)
         self.load_state_dict(torch.load(path))
-        pass
+
+        return
 
     def save_best(self):
 
         path = resource_filename("src", f"models/saved_models/{self.name}_best.pth")
         torch.save(self.state_dict(), path)
+
+        return

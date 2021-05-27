@@ -67,6 +67,8 @@ def get_centre_data(centre, seq_length=50):
             Ys[j, k] = Y[i]
             As[j, k] = A[i]
 
+    Ys = (Ys - Ys.mean()) / Ys.std()
+
     dataset = OrganDataset()
 
     dataset.covariates = torch.tensor(Xs)
