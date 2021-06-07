@@ -3,13 +3,14 @@ from src.models import (
     AdaptiveLinearModel,
     BehaviouralCloning,
     BehaviouralCloningLSTM,
+    BehaviouralCloningDeep,
     RCAL,
+    CIRL,
 )  # noqa: F401
-from src.data_loading import generate_linear_dataset, get_centre_data
-
+from src.data_loading import generate_linear_dataset, get_centre_data, SupDataset
 
 hyperparams = {
-    "covariate_size": 63,
+    "covariate_size": 5,
     "action_size": 2,
     "outcome_size": 1,
     "memory_hidden_size": 32,
@@ -22,32 +23,42 @@ hyperparams = {
     "inf_layers": 1,
     "inf_dropout": 0.5,
     "inf_fc_size": 32,
-    "hidden_size": 32,
+    "hidden_size": 64,
 }
 
-model = RCAL
+model = CIRL
 # model = BehaviouralCloningLSTM
 model = model(**hyperparams)
-
+"""
+training_data = SupDataset("cf", max_seq_length=50)
+validation_data = SupDataset("cf", max_seq_length=50, test=True).get_whole_batch()
+test_data = SupDataset("cf", max_seq_length=50, test=True).get_whole_batch()
+"""
+"""
 training_centre = "CTR23901"
 
-training_data = get_centre_data(training_centre, seq_length=200)
-validation_data = get_centre_data("CTR124").get_whole_batch()
-test_data = get_centre_data("CTR279").get_whole_batch()
+training_data = get_centre_data(training_centre, seq_length=50)
+validation_data = get_centre_data("CTR279").get_whole_batch()
+test_data = get_centre_data("CTR124").get_whole_batch()
+"""
 # loss = model.loss(validation_data)
 # print(loss)
 
 
-# training_data = generate_linear_dataset(1000, 50, seed=41310)
+training_data = generate_linear_dataset(10000, 50, seed=41310)
+validation_data = generate_linear_dataset(1000, 50, seed=41310).get_whole_batch()
+test_data = generate_linear_dataset(1000, 50, seed=41310).get_whole_batch()
 # training_data.cut_start_sequence(2500)
 # print(training_data.actions.float().mean(axis=1))
 
-# validation_data = generate_linear_dataset(100, 50, seed=41310).get_whole_batch()
+# validation_data = generate_linear_dataset(1000, 50, seed=28).get_whole_batch()
+# test_data = generate_linear_dataset(1000, 50, seed=28).get_whole_batch()
+
 
 model.fit(
     training_data,
     batch_size=100,
-    epochs=150,
+    epochs=50,
     learning_rate=0.01,
     validation_set=validation_data,
 )

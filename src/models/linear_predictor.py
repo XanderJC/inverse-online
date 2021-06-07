@@ -290,6 +290,8 @@ class AdaptiveLinearModel(BaseModel):
 
             memories[:, t + 1, :] = memory.squeeze()
 
+        memories = self.sample_memory(posterior_params)
+
         treatment_effect = self.outcome_network(covariates, memories)
 
         pred = self.treatment_rule(treatment_effect)
@@ -468,7 +470,7 @@ class TENetwork(torch.nn.Module):
         b_1 = self.bias_layer_1(x)
 
         # b_0 = 0
-        # b_1 = 0
+        #  b_1 = 0
 
         # omega_0 = omega_0.reshape((batch_size * seq_length, dim, 1))
         # omega_1 = omega_1.reshape((batch_size * seq_length, dim, 1))

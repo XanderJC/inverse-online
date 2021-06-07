@@ -196,11 +196,12 @@ def generate_linear_dataset(num_trajs, max_len, seed=41310):
     A = np.zeros((num_trajs, max_len))
     Y = np.zeros((num_trajs, max_len))
     M = np.ones((num_trajs, max_len))
+    beta_list = list()
 
     for i in range(num_trajs):
         data, params = simulate_x_and_pos(n=max_len, no_seed=True)
         x, y, a, pi, betas = generate_samples_rational_linear_agent(data)
-
+        beta_list.append(betas)
         X[i, :, :] = x
         A[i] = a
         Y[i] = y
@@ -215,6 +216,7 @@ def generate_linear_dataset(num_trajs, max_len, seed=41310):
     dataset.mask = torch.tensor(M, dtype=int)
 
     dataset.N = len(dataset.covariates)
+    dataset.betas = beta_list
 
     return dataset
 
