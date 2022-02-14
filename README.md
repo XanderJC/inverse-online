@@ -1,18 +1,18 @@
 
 # [Inverse Online Learning: Understanding Non-Stationary and Reactionary Policies](https://openreview.net/forum?id=DYypjaRdph2)
 
-### Alex J. Chan, A. Curth, and Mihaela van der Schaar
+### Alex J. Chan, Alicia Curth, and Mihaela van der Schaar
 
 ### International Conference on Learning Representations (ICLR) 2022
  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
  <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 
 
-Last Updated: 3 February 2022
+Last Updated: 14 February 2022
 
 Code Author: Alex J. Chan (ajc340@cam.ac.uk)
 
-
+This repo contains a PyTorch example implementation of the inverse online learning algorithm presented in our paper. The code is ready to run on a synthetic data example and should be simple to apply to arbitrary datasets.
 
 This repo is pip installable - clone it, optionally create a virtual env, and install it (this will automatically install dependencies):
 
