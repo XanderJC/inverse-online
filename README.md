@@ -1,35 +1,71 @@
-# Treatment Effect Beliefs 
 
+# [Inverse Online Learning: Understanding Non-Stationary and Reactionary Policies](https://openreview.net/forum?id=DYypjaRdph2)
+
+### Alex J. Chan, A. Curth, and Mihaela van der Schaar
+
+### International Conference on Learning Representations (ICLR) 2022
  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
  <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 
-## Requirements
-- Python 3.7+
 
-## Project Organization
+Last Updated: 3 February 2022
+
+Code Author: Alex J. Chan (ajc340@cam.ac.uk)
+
+
+
+This repo is pip installable - clone it, optionally create a virtual env, and install it (this will automatically install dependencies):
+
+```shell
+git clone https://github.com/XanderJC/inverse-online.git
+
+cd inverse-online
+
+pip install -e .
 ```
-├── LICENSE
-├── Makefile           <- Makefile with commands like `make init` or `make lint-requirements`
-├── README.md          <- The top-level README for developers using this project.
-|
-├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-|   |                     the creator's initials, and a short `-` delimited description, e.g.
-|   |                     `1.0_jqp_initial-data-exploration`.
-│   ├── exploratory    <- Notebooks for initial exploration.
-│   └── reports        <- Polished notebooks for presentations or intermediate results.
-│
-├── requirements.txt   <- Requirement file.
-│
-├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
-├── src                <- Source code for use in this project.
-│   ├── __init__.py    <- Makes src a Python module
-│   │
-│   ├── data_loading   <- Scripts to download or generate data
-│   │
-│   ├── models         <- Scripts to train models and then use trained models to make
-│   │                     predictions
-│   │
-│   └── tests          <- Scripts for unit tests of your functions
-│
-└── setup.cfg          <- setup configuration file for linting rules
+
+
+Example usage:
+
+```python
+from iol.models import AdaptiveLinearModel
+from iol.data_loading import generate_linear_dataset
+from iol.constants import HYPERPARAMS
+
+model = AdaptiveLinearModel(**HYPERPARAMS)
+
+training_data   = generate_linear_dataset(10000, 50, seed=41310)
+validation_data = generate_linear_dataset(1000,  50, seed=41311).get_whole_batch()
+test_data       = generate_linear_dataset(1000,  50, seed=41312).get_whole_batch()
+
+model.fit(
+    training_data,
+    batch_size=100,
+    epochs=5,
+    learning_rate=0.01,
+    validation_set=validation_data,
+)
+
+print(model.validation(test_data))
+```
+
+This example can be run simply from the shell using:
+
+```shell
+python iol/demo.py
+```
+
+
+### Citing 
+
+If you use this software please cite as follows:
+
+```
+@inproceedings{chan2022inverse,
+title={Inverse Online Learning: Understanding Non-Stationary and Reactionary Policies},
+author={Alex James Chan and Alicia Curth and Mihaela van der Schaar},
+booktitle={International Conference on Learning Representations},
+year={2022},
+url={https://openreview.net/forum?id=DYypjaRdph2}
+}
 ```
