@@ -3,9 +3,6 @@ import torch
 from iol.models import BaseModel
 from iol.models.utils import reverse_sequence
 
-# from src.models.optimal_treatment_rules import OTR, NormalisedRatio
-# from src.models.cate_nets import CATENet, TreatNetwork
-
 import torch.nn.functional as F
 from torch.distributions.kl import kl_divergence
 

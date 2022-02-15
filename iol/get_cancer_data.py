@@ -53,13 +53,13 @@ test_data = (
 )
 
 
-path_training = resource_filename("src", "data_loading/data/prerun_cancer_training.npz")
+path_training = resource_filename("iol", "data_loading/data/prerun_cancer_training.npz")
 np.savez(path_training, *training_data)
 
 path_validation = resource_filename(
-    "src", "data_loading/data/prerun_cancer_validation.npz"
+    "iol", "data_loading/data/prerun_cancer_validation.npz"
 )
 np.savez(path_validation, *validation_data)
 
-path_test = resource_filename("src", "data_loading/data/prerun_cancer_test.npz")
+path_test = resource_filename("iol", "data_loading/data/prerun_cancer_test.npz")
 np.savez(path_test, *test_data)
