@@ -42,7 +42,7 @@ class OrganDataset(torch.utils.data.Dataset):
 def get_centre_data(centre, seq_length=50):
 
     path_tail = f"data_loading/centres_cleaned/{centre}_data.pkl"
-    path = resource_filename("src", path_tail)
+    path = resource_filename("iol", path_tail)
 
     with open(path, "rb") as file:
         data = pickle.load(file)
